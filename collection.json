@@ -1,0 +1,165 @@
+{
+  "info": {
+    "name": "Inventory Service — Lab 6",
+    "_postman_id": "f7c2c6d4-1234-5678-9abc-lab6inventory",
+    "description": "Postman collection for the Lab 6 inventory service. Default base URL is http://127.0.0.1:3000.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:3000" },
+    { "key": "id", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Register item",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "inventory_name", "value": "Drill", "type": "text" },
+            { "key": "description", "value": "Cordless drill 18V", "type": "text" },
+            { "key": "photo", "type": "file", "src": [] }
+          ]
+        },
+        "url": { "raw": "{{baseUrl}}/register", "host": ["{{baseUrl}}"], "path": ["register"] }
+      }
+    },
+    {
+      "name": "Bad request without inventory_name",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "description", "value": "Missing name", "type": "text" }
+          ]
+        },
+        "url": { "raw": "{{baseUrl}}/register", "host": ["{{baseUrl}}"], "path": ["register"] }
+      }
+    },
+    {
+      "name": "Get all inventory",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/inventory", "host": ["{{baseUrl}}"], "path": ["inventory"] }
+      }
+    },
+    {
+      "name": "Get inventory by ID",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/inventory/{{id}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "{{id}}"]
+        }
+      }
+    },
+    {
+      "name": "Not found by wrong ID",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/inventory/9999",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "9999"]
+        }
+      }
+    },
+    {
+      "name": "Update inventory",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"inventory_name\": \"Updated drill\",\n  \"description\": \"Updated description\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/inventory/{{id}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "{{id}}"]
+        }
+      }
+    },
+    {
+      "name": "Get photo",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/inventory/{{id}}/photo",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "{{id}}", "photo"]
+        }
+      }
+    },
+    {
+      "name": "Update photo",
+      "request": {
+        "method": "PUT",
+        "body": {
+          "mode": "formdata",
+          "formdata": [{ "key": "photo", "type": "file", "src": [] }]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/inventory/{{id}}/photo",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "{{id}}", "photo"]
+        }
+      }
+    },
+    {
+      "name": "Search inventory",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "id", "value": "1", "type": "text" },
+            { "key": "has_photo", "value": "true", "type": "text" }
+          ]
+        },
+        "url": { "raw": "{{baseUrl}}/search", "host": ["{{baseUrl}}"], "path": ["search"] }
+      }
+    },
+    {
+      "name": "Delete inventory",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "{{baseUrl}}/inventory/{{id}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "{{id}}"]
+        }
+      }
+    },
+    {
+      "name": "Register form (HTML)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/RegisterForm.html",
+          "host": ["{{baseUrl}}"],
+          "path": ["RegisterForm.html"]
+        }
+      }
+    },
+    {
+      "name": "Search form (HTML)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/SearchForm.html",
+          "host": ["{{baseUrl}}"],
+          "path": ["SearchForm.html"]
+        }
+      }
+    }
+  ]
+}

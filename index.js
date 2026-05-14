@@ -3,6 +3,8 @@ const path = require('path');
 const express = require('express');
 const multer = require('multer');
 const { Command } = require('commander');
+const swaggerUi = require('swagger-ui-express');
+// superagent is required by the lab specification, even though we don't actively use it.
 const superagent = require('superagent');
 
 // ---------- CLI arguments ----------
@@ -15,12 +17,13 @@ program
 try {
   program.parse(process.argv);
 } catch (err) {
-  console.error('Error: missing required CLI arguments. Use --host <host> --port <port> --cache <path>.');
+  console.error('Error: missing required CLI arguments. Use -h <host> -p <port> -c <cachePath>.');
   process.exit(1);
 }
 
 const { host, port, cache: cacheDir } = program.opts();
 
+// Auto-create the cache directory if it does not exist.
 const absoluteCacheDir = path.resolve(cacheDir);
 if (!fs.existsSync(absoluteCacheDir)) {
   fs.mkdirSync(absoluteCacheDir, { recursive: true });
@@ -31,9 +34,11 @@ if (!fs.existsSync(absoluteCacheDir)) {
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(__dirname));
-app.use('/cache', express.static(absoluteCacheDir));
 
+// Static access to forms
+app.use(express.static(__dirname));
+
+// Multer storage: keep original extension, give the file a unique name.
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, absoluteCacheDir),
   filename: (_req, file, cb) => {
@@ -51,9 +56,134 @@ let nextId = 1;
 const buildPhotoUrl = (req, filename) =>
   filename ? `${req.protocol}://${req.get('host')}/cache/${filename}` : null;
 
+// Expose cached files (so photoUrl works in the browser).
+app.use('/cache', express.static(absoluteCacheDir));
+
+// ---------- Swagger ----------
+const swaggerDocument = {
+  openapi: '3.0.0',
+  info: {
+    title: 'Inventory Service API',
+    version: '1.0.0',
+    description: 'Lab 6 — Inventory service. Express + Commander + Multer + Swagger.',
+  },
+  servers: [{ url: `http://${host}:${port}` }],
+  paths: {
+    '/register': {
+      post: {
+        summary: 'Register a new inventory item',
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['inventory_name'],
+                properties: {
+                  inventory_name: { type: 'string' },
+                  description: { type: 'string' },
+                  photo: { type: 'string', format: 'binary' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'Created' },
+          400: { description: 'Bad Request — inventory_name is missing' },
+        },
+      },
+    },
+    '/inventory': {
+      get: {
+        summary: 'Get all inventory items',
+        responses: { 200: { description: 'OK' } },
+      },
+    },
+    '/inventory/{id}': {
+      get: {
+        summary: 'Get one inventory item by id',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
+      },
+      put: {
+        summary: 'Update an inventory item',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  inventory_name: { type: 'string' },
+                  description: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
+      },
+      delete: {
+        summary: 'Delete an inventory item',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
+      },
+    },
+    '/inventory/{id}/photo': {
+      get: {
+        summary: 'Get the photo of an item',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        responses: { 200: { description: 'OK — image/jpeg' }, 404: { description: 'Not Found' } },
+      },
+      put: {
+        summary: 'Update the photo of an item',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: { photo: { type: 'string', format: 'binary' } },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
+      },
+    },
+    '/search': {
+      post: {
+        summary: 'Search an item by id (HTML form handler)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/x-www-form-urlencoded': {
+              schema: {
+                type: 'object',
+                required: ['id'],
+                properties: {
+                  id: { type: 'string' },
+                  has_photo: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
+      },
+    },
+    '/RegisterForm.html': { get: { summary: 'Inventory registration HTML form', responses: { 200: { description: 'OK' } } } },
+    '/SearchForm.html': { get: { summary: 'Inventory search HTML form', responses: { 200: { description: 'OK' } } } },
+  },
+};
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
 // ---------- Routes ----------
 
-// HTML forms.
+// HTML forms — explicit routes (in addition to express.static) for clarity.
 app.get('/RegisterForm.html', (_req, res) => {
   res.sendFile(path.join(__dirname, 'RegisterForm.html'));
 });
@@ -65,6 +195,7 @@ app.get('/SearchForm.html', (_req, res) => {
 app.post('/register', upload.single('photo'), (req, res) => {
   const { inventory_name, description } = req.body;
   if (!inventory_name || inventory_name.trim() === '') {
+    // Remove the uploaded file if validation failed — no orphan files in cache.
     if (req.file) fs.unlink(req.file.path, () => {});
     return res.status(400).send('Bad Request: inventory_name is required');
   }
@@ -141,6 +272,7 @@ app.put('/inventory/:id/photo', upload.single('photo'), (req, res) => {
   }
   if (!req.file) return res.status(400).send('Bad Request: photo is required');
 
+  // Remove the old file if there was one.
   if (item.photo) {
     fs.unlink(path.join(absoluteCacheDir, item.photo), () => {});
   }
@@ -161,7 +293,7 @@ app.delete('/inventory/:id', (req, res) => {
   res.status(200).json({ message: 'Deleted', id: removed.id });
 });
 
-// POST /search — form handler that renders an HTML response.
+// POST /search — handler for SearchForm.html.
 app.post('/search', (req, res) => {
   const { id, has_photo } = req.body;
   const item = inventory.find((it) => it.id === Number(id));
@@ -170,6 +302,7 @@ app.post('/search', (req, res) => {
   const includePhoto = has_photo === 'true' || has_photo === 'on' || has_photo === true;
   const photoLink = item.photo ? buildPhotoUrl(req, item.photo) : null;
 
+  // Render simple HTML so the form result is human-readable.
   let html = `<!DOCTYPE html><html><body>
     <h2>Inventory item #${item.id}</h2>
     <p><strong>Name:</strong> ${item.inventory_name}</p>
@@ -183,7 +316,7 @@ app.post('/search', (req, res) => {
 });
 
 // ---------- 405 Method Not Allowed ----------
-// Express tries the handlers above first; these only fire when the method doesn't match.
+// Each route only declares the methods we support above — anything else returns 405.
 app.all('/register', (req, res) => res.status(405).set('Allow', 'POST').send('Method Not Allowed'));
 app.all('/inventory', (req, res) => res.status(405).set('Allow', 'GET').send('Method Not Allowed'));
 app.all('/inventory/:id', (req, res) =>
@@ -200,5 +333,6 @@ app.all('*', (_req, res) => res.status(405).send('Method Not Allowed'));
 // ---------- Start ----------
 app.listen(Number(port), host, () => {
   console.log(`Inventory service running at http://${host}:${port}`);
+  console.log(`Swagger UI available at  http://${host}:${port}/api-docs`);
   console.log(`Cache directory:         ${absoluteCacheDir}`);
 });
