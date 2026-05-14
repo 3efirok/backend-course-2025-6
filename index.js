@@ -31,9 +31,9 @@ if (!fs.existsSync(absoluteCacheDir)) {
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(__dirname));
 app.use('/cache', express.static(absoluteCacheDir));
 
-// Multer storage: keep extension, give file a unique name.
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, absoluteCacheDir),
   filename: (_req, file, cb) => {
@@ -52,6 +52,14 @@ const buildPhotoUrl = (req, filename) =>
   filename ? `${req.protocol}://${req.get('host')}/cache/${filename}` : null;
 
 // ---------- Routes ----------
+
+// HTML forms.
+app.get('/RegisterForm.html', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'RegisterForm.html'));
+});
+app.get('/SearchForm.html', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'SearchForm.html'));
+});
 
 // POST /register — create a new inventory item.
 app.post('/register', upload.single('photo'), (req, res) => {
@@ -152,6 +160,42 @@ app.delete('/inventory/:id', (req, res) => {
   }
   res.status(200).json({ message: 'Deleted', id: removed.id });
 });
+
+// POST /search — form handler that renders an HTML response.
+app.post('/search', (req, res) => {
+  const { id, has_photo } = req.body;
+  const item = inventory.find((it) => it.id === Number(id));
+  if (!item) return res.status(404).send('Not Found');
+
+  const includePhoto = has_photo === 'true' || has_photo === 'on' || has_photo === true;
+  const photoLink = item.photo ? buildPhotoUrl(req, item.photo) : null;
+
+  let html = `<!DOCTYPE html><html><body>
+    <h2>Inventory item #${item.id}</h2>
+    <p><strong>Name:</strong> ${item.inventory_name}</p>
+    <p><strong>Description:</strong> ${item.description}</p>`;
+  if (includePhoto && photoLink) {
+    html += `<p><strong>Photo:</strong> <a href="${photoLink}">${photoLink}</a></p>
+             <p><img src="${photoLink}" alt="photo" style="max-width:300px"></p>`;
+  }
+  html += `<p><a href="/SearchForm.html">Back to search</a></p></body></html>`;
+  res.status(200).send(html);
+});
+
+// ---------- 405 Method Not Allowed ----------
+// Express tries the handlers above first; these only fire when the method doesn't match.
+app.all('/register', (req, res) => res.status(405).set('Allow', 'POST').send('Method Not Allowed'));
+app.all('/inventory', (req, res) => res.status(405).set('Allow', 'GET').send('Method Not Allowed'));
+app.all('/inventory/:id', (req, res) =>
+  res.status(405).set('Allow', 'GET, PUT, DELETE').send('Method Not Allowed'),
+);
+app.all('/inventory/:id/photo', (req, res) =>
+  res.status(405).set('Allow', 'GET, PUT').send('Method Not Allowed'),
+);
+app.all('/search', (req, res) => res.status(405).set('Allow', 'POST').send('Method Not Allowed'));
+
+// Catch-all: any unknown route also returns 405 per lab spec.
+app.all('*', (_req, res) => res.status(405).send('Method Not Allowed'));
 
 // ---------- Start ----------
 app.listen(Number(port), host, () => {
