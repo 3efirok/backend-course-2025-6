@@ -4,6 +4,7 @@ const express = require('express');
 const multer = require('multer');
 const { Command } = require('commander');
 const swaggerUi = require('swagger-ui-express');
+const buildSwaggerDocument = require('./swagger');
 // superagent is required by the lab specification, even though we don't actively use it.
 const superagent = require('superagent');
 
@@ -60,125 +61,7 @@ const buildPhotoUrl = (req, filename) =>
 app.use('/cache', express.static(absoluteCacheDir));
 
 // ---------- Swagger ----------
-const swaggerDocument = {
-  openapi: '3.0.0',
-  info: {
-    title: 'Inventory Service API',
-    version: '1.0.0',
-    description: 'Lab 6 — Inventory service. Express + Commander + Multer + Swagger.',
-  },
-  servers: [{ url: `http://${host}:${port}` }],
-  paths: {
-    '/register': {
-      post: {
-        summary: 'Register a new inventory item',
-        requestBody: {
-          required: true,
-          content: {
-            'multipart/form-data': {
-              schema: {
-                type: 'object',
-                required: ['inventory_name'],
-                properties: {
-                  inventory_name: { type: 'string' },
-                  description: { type: 'string' },
-                  photo: { type: 'string', format: 'binary' },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          201: { description: 'Created' },
-          400: { description: 'Bad Request — inventory_name is missing' },
-        },
-      },
-    },
-    '/inventory': {
-      get: {
-        summary: 'Get all inventory items',
-        responses: { 200: { description: 'OK' } },
-      },
-    },
-    '/inventory/{id}': {
-      get: {
-        summary: 'Get one inventory item by id',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
-      },
-      put: {
-        summary: 'Update an inventory item',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  inventory_name: { type: 'string' },
-                  description: { type: 'string' },
-                },
-              },
-            },
-          },
-        },
-        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
-      },
-      delete: {
-        summary: 'Delete an inventory item',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
-      },
-    },
-    '/inventory/{id}/photo': {
-      get: {
-        summary: 'Get the photo of an item',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-        responses: { 200: { description: 'OK — image/jpeg' }, 404: { description: 'Not Found' } },
-      },
-      put: {
-        summary: 'Update the photo of an item',
-        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-        requestBody: {
-          required: true,
-          content: {
-            'multipart/form-data': {
-              schema: {
-                type: 'object',
-                properties: { photo: { type: 'string', format: 'binary' } },
-              },
-            },
-          },
-        },
-        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
-      },
-    },
-    '/search': {
-      post: {
-        summary: 'Search an item by id (HTML form handler)',
-        requestBody: {
-          required: true,
-          content: {
-            'application/x-www-form-urlencoded': {
-              schema: {
-                type: 'object',
-                required: ['id'],
-                properties: {
-                  id: { type: 'string' },
-                  has_photo: { type: 'string' },
-                },
-              },
-            },
-          },
-        },
-        responses: { 200: { description: 'OK' }, 404: { description: 'Not Found' } },
-      },
-    },
-    '/RegisterForm.html': { get: { summary: 'Inventory registration HTML form', responses: { 200: { description: 'OK' } } } },
-    '/SearchForm.html': { get: { summary: 'Inventory search HTML form', responses: { 200: { description: 'OK' } } } },
-  },
-};
+const swaggerDocument = buildSwaggerDocument(host, port);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // ---------- Routes ----------
